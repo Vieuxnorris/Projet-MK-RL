@@ -3,6 +3,8 @@ import numpy as np
 
 import psutil
 
+import cv2
+
 import gym
 from gym import spaces
 
@@ -10,12 +12,11 @@ import pygame
 from pygame.locals import *
 
 # a faire :
-# - get_obsersation(self)
 # - Reset(self)
-# - Optuna
 # - reverse engineer MK pour grab les variables (indipensable pour faire le système de récompense)
 # - implèmentation de tensorboard
 # - choix de l'Algo PPO ou DQN (préf PPO)
+# - Optuna
 # - go train !
 
 
@@ -53,7 +54,7 @@ class RLMK(gym.Env):
         
         self.action_space = spaces.Discrete(len(self.action_map))
         self.observation_space = spaces.Box(low=0, high=255, shape=(64,64,1))
-        self.monitor = {}
+        self.monitor = {'top':200,'left':0, 'width':1895, "height":580}
     
     def scan_process(self, name_process):
         for proc in psutil.process_iter():
@@ -90,6 +91,14 @@ class RLMK(gym.Env):
                         self.step(action)
     
     def get_observation(self):
+        obs = np.asarray(mss.mss().grab(self.monitor))
+        Gray = cv2.cvtColor(obs, cv2.COLOR_BGR2GRAY)
+        Resize = cv2.resize(Gray, (64,64))
+        channel = np.reshape(Resize, (64,64,1))
+        return channel
+        
+    
+    def render(self):
         pass
     
     def reset(self):
@@ -104,3 +113,8 @@ class RLMK(gym.Env):
             
 if __name__ == "__main__":
     env = RLMK()
+    
+        
+        
+        
+        
