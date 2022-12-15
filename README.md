@@ -27,4 +27,5 @@
 </p>
 <hr>
 <h2 align="center">📙 Projet-MK-RL 📙</h2>
+
 Apprentissage par renforcement pour le jeu MK (Mortal Kombat) - Early dev 
