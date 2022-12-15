@@ -34,15 +34,22 @@ class RLMK(gym.Env):
         }
         
         self.addr_map = {
+            "Player": 0x01234567,
             "PV": 0x01234567,
             "Time": 0x01234567,
+            "Position_X": 0x01234567,
+            "Position_Y": 0x01234567,
         }
         
         self.game_process_id = self.scan_process("MKII")
         self.game_process = psutil.Process(self.game_process_id)
         self.memory_maps = self.game_process.memory_maps()
         
+        self.addresses = {}
         
+        for key, value in self.addr_map.items():
+            addr = self.save_memory_for_read(value)
+            self.addresses[key] = addr
         
         self.action_space = spaces.Discrete(len(self.action_map))
         self.observation_space = spaces.Box(low=0, high=255, shape=(64,64,1))
@@ -57,13 +64,14 @@ class RLMK(gym.Env):
                 return process_id
         return
     
-    def memory_read(self, addr_map_valeur):
-        memory_map = None
+    def save_memory_for_read(self, addr_map_valeur):
         for map in self.memory_maps:
-            if map.addr == addr_map_valeur:
-                memory_map = map
-                return memory_map
-        
+            offset  = map.find(addr_map_valeur)
+            if offset != -1:
+                addr = map.addr + offset
+                return addr
+        return
+           
     def read_inputs(self):
         # Lire les entrées du clavier
         for event in pygame.event.get():
@@ -96,8 +104,3 @@ class RLMK(gym.Env):
             
 if __name__ == "__main__":
     env = RLMK()
-    
-        
-        
-        
-        
