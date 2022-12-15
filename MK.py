@@ -1,5 +1,8 @@
 import mss
 import numpy as np
+
+import psutil
+
 import gym
 from gym import spaces
 
@@ -30,10 +33,37 @@ class RLMK(gym.Env):
             3: (pygame.K_UP, pygame.K_RIGHT),
         }
         
+        self.addr_map = {
+            "PV": 0x01234567,
+            "Time": 0x01234567,
+        }
+        
+        self.game_process_id = self.scan_process("MKII")
+        self.game_process = psutil.Process(self.game_process_id)
+        self.memory_maps = self.game_process.memory_maps()
+        
+        
+        
         self.action_space = spaces.Discrete(len(self.action_map))
-        self.observation_space = spaces.Box(low=0, high=255, shape=(64,64,3))
+        self.observation_space = spaces.Box(low=0, high=255, shape=(64,64,1))
         self.monitor = {}
     
+    def scan_process(self, name_process):
+        for proc in psutil.process_iter():
+            proc_name = proc.name()
+            
+            if proc_name == name_process:
+                process_id = proc.pid
+                return process_id
+        return
+    
+    def memory_read(self, addr_map_valeur):
+        memory_map = None
+        for map in self.memory_maps:
+            if map.addr == addr_map_valeur:
+                memory_map = map
+                return memory_map
+        
     def read_inputs(self):
         # Lire les entrées du clavier
         for event in pygame.event.get():
@@ -51,15 +81,18 @@ class RLMK(gym.Env):
                         # Effectuer l'action dans l'environnement Gym
                         self.step(action)
     
+    def get_observation(self):
+        pass
+    
+    def reset(self):
+        pass
+    
     def step(self, action):
         self.read_inputs()
         state, observation, done = self.step(action)
         if done:
             self.reset()
         return state, observation, done
-    
-    def get_observation(self):
-        pass
             
 if __name__ == "__main__":
     env = RLMK()
