@@ -1,10 +1,8 @@
 import mss
 import numpy as np
-import struct
 
 import sys
 import pyMeow as pm
-import ctypes
 
 import cv2
 
@@ -17,15 +15,16 @@ from pygame.locals import *
 # a faire :
 # - reverse engineer MK pour grab les variables (indipensable pour faire le système de récompense)
 # - Reset(self)
-# - implèmentation de tensorboard
 # - choix de l'Algo PPO ou DQN (préf PPO)
+# - implèmentation de tensorboard
 # - Optuna
 # - go train !
 
+# pour les test des methodes et autre, je prend GeometryDash comme setup de test
 
 # template 
 class RLMK(gym.Env):
-    def __init__(self, debug=False):
+    def __init__(self, game="GeometryDash.exe"):
         super(RLMK, self).__init__()
         pygame.init()
         pygame.key.set_repeat(200,100)
@@ -38,24 +37,27 @@ class RLMK(gym.Env):
         self.addr_map = {
             "Score": 0x00322290,
             "Time": 0x003222DC,
+            #"Death":0x01234567,
         }
         
         self.addr_map_offset = {
             "Score": [0xD0, 0x20, 0x28, 0x0, 0x4C0],
             "Time": [0xCC, 0x28, 0x0, 0x8, 0x2BC],
+            #"Death": [0x01, 0x02],
         }
         
-        self.game_process_id = pm.get_process_id("GeometryDash.exe")
+        self.game_process_id = pm.get_process_id(game)
         self.game_process_handle = None
+        
         if self.game_process_id is not None:
             self.game_process_handle = pm.open_process(self.game_process_id)
-            self.baseAddr = pm.get_module(self.game_process_handle, "GeometryDash.exe")["base"]
+            self.baseAddr = pm.get_module(self.game_process_handle, game)["base"]
         else:
             self.game_process_handle = None
             
         self.addresses = {}
         self.read_addr_map()
-        print(pm.r_int(self.game_process_handle, self.addresses["Score"]))
+        
         self.action_space = spaces.Discrete(len(self.action_map))
         self.observation_space = spaces.Box(low=0, high=255, shape=(160,160,1))
         self.monitor = {'top':50,'left':0, 'width':640, "height":430}
@@ -67,23 +69,6 @@ class RLMK(gym.Env):
     def read_addr_map(self):
         for key, value in self.addr_map.items():
             self.read_memory(value, key)
-      
-    def read_inputs(self):
-        # Lire les entrées du clavier
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                # Récupérer le tableau des touches enfoncées
-                keys = pygame.key.get_pressed()
-
-                # Parcourir les combinaisons de touches de la map d'actions
-                for key_tuple in self.action_map.values():
-                    # Vérifier si la combinaison de touches est enfoncée
-                    if all(keys[key] for key in key_tuple):
-                        # Récupérer l'action associée à la combinaison de touches
-                        action = list(self.action_map.keys())[list(self.action_map.values()).index(key_tuple)]
-
-                        # Effectuer l'action dans l'environnement Gym
-                        self.step(action)
     
     def get_observation(self):
         obs = np.asarray(mss.mss().grab(self.monitor))
@@ -100,22 +85,23 @@ class RLMK(gym.Env):
                 break
         cv2.destroyAllWindows()
     
+    def press_key(self, key):
+        pygame.event.post(pygame.event.Event(pygame.K_UP, key=key))
+    
     def reset(self):
         pass
     
     def step(self, action):
-        self.read_inputs()
-        state, observation, done = self.step(action)
-        if done:
-            self.reset()
-        return state, observation, done
+        reward_Time = pm.r_int(self.game_process_handle, self.addresses["Time"])
+        reward_Score = pm.r_int(self.game_process_handle, self.addresses["Score"])
+        #reward_Death = pm.r_int(self.game_process_handle, self.addresses["Death"])
+        key = self.action_map[action]
+        if key is not None:
+            self.press_key(key)
+        else:
+            print("Action inconnue")
 
     
 if __name__ == "__main__":
     env = RLMK()
     env.render()
-    
-        
-        
-        
-        
