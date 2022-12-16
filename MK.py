@@ -1,7 +1,10 @@
 import mss
 import numpy as np
+import struct
 
-import psutil
+import sys
+import pyMeow as pm
+import ctypes
 
 import cv2
 
@@ -12,8 +15,8 @@ import pygame
 from pygame.locals import *
 
 # a faire :
-# - Reset(self)
 # - reverse engineer MK pour grab les variables (indipensable pour faire le système de récompense)
+# - Reset(self)
 # - implèmentation de tensorboard
 # - choix de l'Algo PPO ou DQN (préf PPO)
 # - Optuna
@@ -22,57 +25,49 @@ from pygame.locals import *
 
 # template 
 class RLMK(gym.Env):
-    def __init__(self):
+    def __init__(self, debug=False):
         super(RLMK, self).__init__()
         pygame.init()
         pygame.key.set_repeat(200,100)
         
         self.action_map = {
-            0: pygame.K_LEFT,
-            1: pygame.K_RIGHT,
-            2: pygame.K_UP,
-            3: (pygame.K_UP, pygame.K_RIGHT),
+            0: pygame.K_UP,
+            1: None,
         }
         
         self.addr_map = {
-            "Player": 0x01234567,
-            "PV": 0x01234567,
-            "Time": 0x01234567,
-            "Position_X": 0x01234567,
-            "Position_Y": 0x01234567,
+            "Score": 0x00322290,
+            "Time": 0x003222DC,
         }
         
-        self.game_process_id = self.scan_process("MKII")
-        self.game_process = psutil.Process(self.game_process_id)
-        self.memory_maps = self.game_process.memory_maps()
+        self.addr_map_offset = {
+            "Score": [0xD0, 0x20, 0x28, 0x0, 0x4C0],
+            "Time": [0xCC, 0x28, 0x0, 0x8, 0x2BC],
+        }
         
-        self.addresses = {}
-        
-        for key, value in self.addr_map.items():
-            addr = self.save_memory_for_read(value)
-            self.addresses[key] = addr
-        
-        self.action_space = spaces.Discrete(len(self.action_map))
-        self.observation_space = spaces.Box(low=0, high=255, shape=(64,64,1))
-        self.monitor = {'top':200,'left':0, 'width':1895, "height":580}
-    
-    def scan_process(self, name_process):
-        for proc in psutil.process_iter():
-            proc_name = proc.name()
+        self.game_process_id = pm.get_process_id("GeometryDash.exe")
+        self.game_process_handle = None
+        if self.game_process_id is not None:
+            self.game_process_handle = pm.open_process(self.game_process_id)
+            self.baseAddr = pm.get_module(self.game_process_handle, "GeometryDash.exe")["base"]
+        else:
+            self.game_process_handle = None
             
-            if proc_name == name_process:
-                process_id = proc.pid
-                return process_id
-        return
+        self.addresses = {}
+        self.read_addr_map()
+        print(pm.r_int(self.game_process_handle, self.addresses["Score"]))
+        self.action_space = spaces.Discrete(len(self.action_map))
+        self.observation_space = spaces.Box(low=0, high=255, shape=(160,160,1))
+        self.monitor = {'top':50,'left':0, 'width':640, "height":430}
     
-    def save_memory_for_read(self, addr_map_valeur):
-        for map in self.memory_maps:
-            offset  = map.find(addr_map_valeur)
-            if offset != -1:
-                addr = map.addr + offset
-                return addr
-        return
-           
+    def read_memory(self, valeur_map_base, name_map_base):
+        Final_addr = pm.pointer_chain_32(self.game_process_handle, self.baseAddr + valeur_map_base, self.addr_map_offset[name_map_base])
+        self.addresses[name_map_base] = Final_addr
+
+    def read_addr_map(self):
+        for key, value in self.addr_map.items():
+            self.read_memory(value, key)
+      
     def read_inputs(self):
         # Lire les entrées du clavier
         for event in pygame.event.get():
@@ -93,13 +88,17 @@ class RLMK(gym.Env):
     def get_observation(self):
         obs = np.asarray(mss.mss().grab(self.monitor))
         Gray = cv2.cvtColor(obs, cv2.COLOR_BGR2GRAY)
-        Resize = cv2.resize(Gray, (64,64))
-        channel = np.reshape(Resize, (64,64,1))
+        Resize = cv2.resize(Gray, (160,160))
+        channel = np.reshape(Resize, (160,160,1))
         return channel
         
     
     def render(self):
-        pass
+        while True:
+            cv2.imshow("test",self.get_observation())
+            if cv2.waitKey(10) == 27: # touche echap pour quitter
+                break
+        cv2.destroyAllWindows()
     
     def reset(self):
         pass
@@ -110,9 +109,11 @@ class RLMK(gym.Env):
         if done:
             self.reset()
         return state, observation, done
-            
+
+    
 if __name__ == "__main__":
     env = RLMK()
+    env.render()
     
         
         
