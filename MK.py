@@ -86,7 +86,8 @@ class RLMK(gym.Env):
         cv2.destroyAllWindows()
     
     def press_key(self, key):
-        pygame.event.post(pygame.event.Event(pygame.K_UP, key=key))
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key))
+        pygame.event.post(pygame.event.Event(pygame.KEYUP, key=key))
     
     def reset(self):
         pass
